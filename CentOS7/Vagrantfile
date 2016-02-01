@@ -1,0 +1,19 @@
+Vagrant.configure(2) do |config|
+  # config.vm.box = 'centos/7' # does not have Guest Addtions
+  config.vm.box = 'bento/centos-7.1'
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+  config.vm.network :private_network, ip: '192.168.33.11'
+  config.ssh.forward_agent = true
+  config.vm.synced_folder './sync', '/home/vagrant/sync'
+  config.vm.provision :shell, inline:<<-SHELL
+    sudo yum update
+    sudo yum -y install epel-release
+    sudo yum -y install openssl-devel gcc python-devel
+    sudo easy_install pip
+    sudo pip install pip --upgrade
+    sudo pip install ansible
+  SHELL
+  # after provisioning by above shell, manually run for further provisioning:
+  #   ansible-playbook ./sync/playbook.yml
+end
+# vi: set ft=ruby :

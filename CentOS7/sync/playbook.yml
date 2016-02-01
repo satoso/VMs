@@ -1,0 +1,136 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  vars:
+    home_dir: /home/vagrant
+    ruby_version: 2.3.0
+    python2_version: 2.7.11
+    python3_version: 3.5.1
+  tasks:
+    - name: yum
+      yum:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - epel-release
+        - bash-completion
+        - nodejs
+        - npm
+        - git
+        - mercurial
+        - ncurses-devel
+        - make
+        - gcc
+        - readline-devel
+      become: yes
+      become_method: sudo
+
+    - name: check if vim exists
+      command: which vim
+      ignore_errors: True
+      register: vim_exist
+
+    - name: clone the latest vim
+      hg: repo=https://bitbucket.org/vim-mirror/vim dest=/usr/local/src/vim
+      when: vim_exist|failed
+      become: yes
+      become_method: sudo
+      register: clone_vim
+
+    - name: configure vim
+      command: ./configure --with-features=huge --enable-multibyte --disable-selinux chdir=/usr/local/src/vim
+      when: vim_exist|failed and clone_vim|success
+      become: yes
+      become_method: sudo
+      register: configure_vim
+
+    - name: make vim
+      command: make chdir=/usr/local/src/vim
+      when: vim_exist|failed and configure_vim|success
+      become: yes
+      become_method: sudo
+      register: make_vim
+
+    - name: make_install vim
+      command: make install chdir=/usr/local/src/vim
+      when: vim_exist|failed and make_vim|success
+      become: yes
+      become_method: sudo
+
+    - name: clone dotfiles
+      git:
+        repo: git@github.com:satoso/dotfiles.git
+        dest: "{{ home_dir }}/dotfiles"
+        recursive: yes
+        accept_hostkey: yes
+
+    - name: set git username on dotfiles dir
+      command: git config user.name "satoso"
+      args:
+        chdir: "{{ home_dir }}/dotfiles"
+
+    - name: set git email on dotfiles dir
+      command: git config user.email "satoso@users.noreply.github.com"
+      args:
+        chdir: "{{ home_dir }}/dotfiles"
+
+    - name: symlink dotfiles
+      file: "src={{ home_dir }}/dotfiles/{{ item }} dest={{ home_dir }}/{{ item }} state=link force=yes"
+      with_items:
+        - .bash_profile
+        - .bashrc
+        - .vimrc
+        - .vim
+
+    - name: install rbenv
+      git:
+        repo: git@github.com:sstephenson/rbenv.git
+        dest: "{{ home_dir }}/.rbenv"
+        accept_hostkey: yes
+
+    - name: install ruby-build
+      git:
+        repo: git@github.com:sstephenson/ruby-build.git
+        dest: "{{ home_dir }}/.rbenv/plugins/ruby-build"
+        accept_hostkey: yes
+
+    - name: install ruby
+      command: "{{ home_dir }}/.rbenv/bin/rbenv install --skip-existing {{ ruby_version }}"
+
+    - name: set global ruby version
+      command: "{{ home_dir }}/.rbenv/bin/rbenv global {{ ruby_version }}"
+
+    - name: install pyenv
+      git:
+        repo: git@github.com:yyuu/pyenv.git
+        dest: "{{ home_dir }}/.pyenv"
+        accept_hostkey: yes
+
+    - name: install python2
+      command: "{{ home_dir }}/.pyenv/bin/pyenv install --skip-existing {{ python2_version }}"
+
+    - name: install python3
+      command: "{{ home_dir }}/.pyenv/bin/pyenv install --skip-existing {{ python3_version }}"
+
+    - name: set global python version to python3
+      command: "{{ home_dir }}/.pyenv/bin/pyenv global {{ python3_version }}"
+
+    - name: install pip on python3
+      easy_install: name=pip
+
+    - name: set global python version to python2
+      command: "{{ home_dir }}/.pyenv/bin/pyenv global {{ python2_version }}"
+
+    # python2 zone
+    # - command: "{{ home_dir }}/.pyenv/bin/pyenv global {{ python2_version }}"
+    # - easy_install: name=pip
+    # - pip: name={{ item }} state=latest executable={{ home_dir }}/.pyenv/shims/pip
+    #   with_items:
+    #     - ansible
+    # - command: "{{ home_dir }}/.pyenv/bin/pyenv global {{ python3_version }}"
+    # python2 zone end
+    # - npm: name={{ item }} state=latest global=yes
+    #   with_items:
+    #     - coffee-script
+    #   become: yes
+    #   become_method: sudo
