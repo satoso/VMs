@@ -7,6 +7,11 @@
     python2_version: 2.7.11
     python3_version: 3.5.1
   tasks:
+    - name: set timezone to JST
+      command: cp -p /usr/share/zoneinfo/Japan /etc/localtime
+      become: yes
+      become_method: sudo
+
     - name: yum
       yum:
         name: "{{ item }}"
